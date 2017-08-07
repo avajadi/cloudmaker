@@ -1,93 +1,81 @@
-/*------------------------------------------------------------------------------
-
-  LIDARLite Arduino Library
-  GetDistanceI2c
-
-  This example shows how to initialize, configure, and read distance from a
-  LIDAR-Lite connected over the I2C interface.
-
-  Connections:
-  LIDAR-Lite 5 Vdc (red) to Arduino 5v
-  LIDAR-Lite I2C SCL (green) to Arduino SCL
-  LIDAR-Lite I2C SDA (blue) to Arduino SDA
-  LIDAR-Lite Ground (black) to Arduino GND
-
-  (Capacitor recommended to mitigate inrush current when device is enabled)
-  680uF capacitor (+) to Arduino 5v
-  680uF capacitor (-) to Arduino GND
-
-  See the Operation Manual for wiring diagrams and more information:
-  http://static.garmin.com/pumac/LIDAR_Lite_v3_Operation_Manual_and_Technical_Specifications.pdf
-
-------------------------------------------------------------------------------*/
 #include <Arduino.h>
 #include <Wire.h>
 #include <LIDARLite.h>
 
-LIDARLite myLidarLite;
+// Switch these if the stepper turns in the wrong direction
+#define CLOCKWISE LOW
+#define COUNTER_CLOCKWISE HIGH
+#define M1 8
+#define M2 9
+#define M3 10
+#define PULSES_PER_360 200
 
-void setup()
-{
-  Serial.begin(115200); // Initialize serial connection to display distance readings
+LIDARLite lidar;
 
-  /*
-    begin(int configuration, bool fasti2c, char lidarliteAddress)
+// defines pins numbers
+const int stepPin = 3;
+const int dirPin = 4;
 
-    Starts the sensor and I2C.
+void sweep( int degrees );
+void measure_and_report( int position );
+void step( int direction );
+void turn( int direction, int steps );
 
-    Parameters
-    ----------------------------------------------------------------------------
-    configuration: Default 0. Selects one of several preset configurations.
-    fasti2c: Default 100 kHz. I2C base frequency.
-      If true I2C frequency is set to 400kHz.
-    lidarliteAddress: Default 0x62. Fill in new address here if changed. See
-      operating manual for instructions.
-  */
-  myLidarLite.begin(0, true); // Set configuration to default and I2C to 400 kHz
+void setup() {
+  // Set the two stepper control pins as Outputs
+  pinMode(stepPin,OUTPUT);
+  pinMode(dirPin,OUTPUT);
+  Serial.begin( 115200 );
 
-  /*
-    configure(int configuration, char lidarliteAddress)
-
-    Selects one of several preset configurations.
-
-    Parameters
-    ----------------------------------------------------------------------------
-    configuration:  Default 0.
-      0: Default mode, balanced performance.
-      1: Short range, high speed. Uses 0x1d maximum acquisition count.
-      2: Default range, higher speed short range. Turns on quick termination
-          detection for faster measurements at short range (with decreased
-          accuracy)
-      3: Maximum range. Uses 0xff maximum acquisition count.
-      4: High sensitivity detection. Overrides default valid measurement detection
-          algorithm, and uses a threshold value for high sensitivity and noise.
-      5: Low sensitivity detection. Overrides default valid measurement detection
-          algorithm, and uses a threshold value for low sensitivity and noise.
-    lidarliteAddress: Default 0x62. Fill in new address here if changed. See
-      operating manual for instructions.
-  */
-  myLidarLite.configure(0); // Change this number to try out alternate configurations
+  // Set up the Lidar
+  lidar.begin(0, true);
+  delay(5000);
 }
 
-void loop()
-{
-  /*
-    distance(bool biasCorrection, char lidarliteAddress)
+void loop() {
+  Serial.println( "Awaiting command");
+  char command[5];
+  command [0] = '\0';
+  int chars = Serial.readBytes(command, 5 );
+  Serial.print( "got chars:" );
+  Serial.println( chars );
+  if( command[0] == 's' ) {
+    Serial.println( "Sweep command" );
+    sweep( 365 );
+  }
+  delay(1000);
+}
 
-    Take a distance measurement and read the result.
+void sweep( int degrees ) {
+  int steps = (int) degrees / 360 * PULSES_PER_360;
+  for(int x = 0; x < steps; x++) {
+    step(CLOCKWISE);
+    delay(10);
+    measure_and_report( x );
+  }
+  Serial.println( "#END");
+  turn( COUNTER_CLOCKWISE, steps );
+}
+void step( int direction ) {
+  digitalWrite(dirPin,direction); // Enables the motor to move in a particular direction
+  digitalWrite(stepPin,HIGH);
+  delayMicroseconds(500);
+  digitalWrite(stepPin,LOW);
+}
 
-    Parameters
-    ----------------------------------------------------------------------------
-    biasCorrection: Default true. Take aquisition with receiver bias
-      correction. If set to false measurements will be faster. Receiver bias
-      correction must be performed periodically. (e.g. 1 out of every 100
-      readings).
-    lidarliteAddress: Default 0x62. Fill in new address here if changed. See
-      operating manual for instructions.
-  */
+void turn( int direction, int steps ) {
+  for( int x = 0 ; x < steps; x++ ) {
+    step( direction );
+    delay(2);
+  }
+}
 
-  // Take a measurement with receiver bias correction and print to serial terminal
-  Serial.println(myLidarLite.distance());
-
-  delay(5000);
+void measure_and_report( int position ) {
+  lidar.configure(0);
+  int distance = -1;
+  distance = lidar.distance();
+  Serial.print( "position:" );
+  Serial.print( position );
+  Serial.print( ",distance:" );
+  Serial.println( distance );
 }
