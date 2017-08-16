@@ -1,3 +1,5 @@
+
+/*
 #include <Arduino.h>
 #include <Wire.h>
 #include <LIDARLite.h>
@@ -40,7 +42,7 @@ void setup() {
 
   // Set up the Lidar
   lidar.begin(0, true);
-  delay(5000);
+  delay(2000);
 }
 
 void loop() {
@@ -120,3 +122,4 @@ void set_stepping( int step_size ) {
   }
   degrees_per_step = 360.0 / steps_per_360;
 }
+*/
